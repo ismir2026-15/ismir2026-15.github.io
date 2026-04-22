@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Audio Deep Learning Demo</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      table-layout: fixed;
+      margin-bottom: 3rem;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #f0f0f0;
+    }
+    .play-btn, .ctrl-btn, .refresh-btn {
+      cursor: pointer;
+      padding: 6px 12px;
+      background: #007BFF;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    .expanded-row {
+      background: #fafafa;
+    }
+    .waveform,
+    .spectrogram {
+      height: 80px;
+      background: #e8e8e8;
+      margin: 5px 0;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    h2 {
+      margin-top: 3rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Audio Deep Learning Demo</h1>
+  <div id="container-surge_full"></div>
+  <div id="container-surge_simple"></div>
+  <div id="container-nsynth"></div>
+  <div id="container-fsd"></div>
+
+  <script type="module">
+    import WaveSurfer from 'https://cdn.jsdelivr.net/npm/wavesurfer.js@7/dist/wavesurfer.esm.js';
+    import Spectrogram from 'https://cdn.jsdelivr.net/npm/wavesurfer.js@7/dist/plugins/spectrogram.js';
+
+    const MODEL_ORDER = ['ground_truth', 'flow', 'flowmlp', 'ffn', 'vae'];
+    const MODEL_LABELS = {
+      'ground_truth': 'Ground Truth',
+      'flow': 'CNF (Param2Tok)',
+      'flowmlp': 'CNF (MLP)',
+      'ffn': 'AST',
+      'vae': 'VAE + RealNVP'
+    };
+
+    const TABLES = [
+      { title: 'Surge XT (Full)', path: 'surge_full' },
+      { title: 'Surge XT (Simple)', path: 'surge_simple' },
+      { title: 'OOD (NSynth)', path: 'nsynth' },
+      { title: 'OOD (FSD50K)', path: 'fsd' },
+    ];
+
+    let globalExpanded = null;
+
+    function updateButtonText(button, isPlaying) {
+      button.innerHTML = isPlaying ? '<i class="fas fa-pause"></i>' : '<i class="fas fa-play"></i>';
+    }
+
+    function createWaveSurfer(container, audioUrl) {
+      const waveformEl = container.querySelector('.waveform');
+      const spectroEl = container.querySelector('.spectrogram');
+      const ws = WaveSurfer.create({
+        container: waveformEl,
+        waveColor: '#999',
+        progressColor: '#007BFF',
+        height: 80,
+        plugins: [
+          Spectrogram.create({
+            container: spectroEl,
+            scale: 'mel',
+            labels: false,
+            height: 80
+          })
+        ]
+      });
+      ws.load(audioUrl);
+      return ws;
+    }
+
+    function collapseGlobalExpanded() {
+      if (globalExpanded) {
+        const { waveSurfers, buttons, row } = globalExpanded;
+        Object.entries(waveSurfers).forEach(([model, ws]) => {
+          if (ws.isPlaying()) ws.pause();
+          ws.destroy();
+        });
+        Object.values(buttons).forEach(btn => updateButtonText(btn, false));
+        row.remove();
+        globalExpanded = null;
+      }
+    }
+
+    function buildTableUI(title, tableId, path) {
+      const container = document.createElement('div');
+      const heading = document.createElement('h2');
+      heading.innerHTML = `${title} <button class="refresh-btn" data-path="${path}" data-table="${tableId}"><i class="fas fa-sync-alt"></i> Fetch more samples</button>`;
+
+      const table = document.createElement('table');
+      table.id = tableId;
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Sample</th>
+            ${MODEL_ORDER.map(m => `<th>${MODEL_LABELS[m]}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody></tbody>
+      `;
+      container.appendChild(heading);
+      container.appendChild(table);
+      document.getElementById('container-' + path).innerHTML = '';
+      document.getElementById('container-' + path).appendChild(container);
+    }
+
+    function populateTableBody(samples, tableId, path) {
+      const table = document.getElementById(tableId);
+      const tbody = table.querySelector('tbody');
+      tbody.innerHTML = '';
+
+      samples.forEach(sample => {
+        const row = document.createElement('tr');
+        row.setAttribute('data-sample', sample);
+        row.innerHTML = `
+          <td>${sample.replace('sample_', 'Sample ')}</td>
+          ${MODEL_ORDER.map(m => `<td><button class="play-btn" data-model="${m}"><i class='fas fa-play'></i></button></td>`).join('')}
+        `;
+        tbody.appendChild(row);
+
+        row.querySelectorAll('.play-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const model = btn.getAttribute('data-model');
+            const sampleId = row.getAttribute('data-sample');
+
+            if (globalExpanded?.sample === sampleId) {
+              const ws = globalExpanded.waveSurfers[model];
+              const b = globalExpanded.buttons[model];
+              if (ws.isPlaying()) {
+                ws.pause();
+                updateButtonText(b, false);
+              } else {
+                Object.entries(globalExpanded.waveSurfers).forEach(([m, otherWs]) => {
+                  if (m !== model && otherWs.isPlaying()) {
+                    otherWs.pause();
+                    updateButtonText(globalExpanded.buttons[m], false);
+                  }
+                });
+                ws.play();
+                updateButtonText(b, true);
+              }
+              return;
+            }
+
+            collapseGlobalExpanded();
+
+            const detailRow = document.createElement('tr');
+            detailRow.classList.add('expanded-row');
+            const firstTd = document.createElement('td');
+            firstTd.innerHTML = `
+              <div class="controls">
+                <button class="ctrl-btn" data-action="stop"><i class="fas fa-stop"></i></button>
+                <button class="ctrl-btn" data-action="rewind"><i class="fas fa-backward"></i></button>
+              </div>
+            `;
+            detailRow.appendChild(firstTd);
+
+            const waveSurfers = {};
+            const buttons = {};
+
+            MODEL_ORDER.forEach(modelName => {
+              const td = document.createElement('td');
+              td.innerHTML = `
+                <div class="model-detail">
+                  <div><strong>${MODEL_LABELS[modelName]}</strong></div>
+                  <div class="waveform"></div>
+                  <div class="spectrogram"></div>
+                </div>
+              `;
+              detailRow.appendChild(td);
+
+              const url = `static/audio/restructured/${path}/${sample}/${modelName}.wav`;
+              waveSurfers[modelName] = createWaveSurfer(td, url);
+            });
+
+            MODEL_ORDER.forEach(m => {
+              const b = row.querySelector(`.play-btn[data-model='${m}']`);
+              if (b) buttons[m] = b;
+            });
+
+            row.parentNode.insertBefore(detailRow, row.nextSibling);
+            globalExpanded = { row: detailRow, waveSurfers, buttons, sample: sample };
+
+            const stopBtn = detailRow.querySelector('[data-action="stop"]');
+            const rewindBtn = detailRow.querySelector('[data-action="rewind"]');
+            stopBtn.addEventListener('click', () => {
+              Object.entries(waveSurfers).forEach(([m, ws]) => {
+                if (ws.isPlaying()) ws.pause();
+                ws.seekTo(0);
+                updateButtonText(buttons[m], false);
+              });
+            });
+            rewindBtn.addEventListener('click', () => {
+              Object.values(waveSurfers).forEach(ws => ws.seekTo(0));
+            });
+
+            const ws = waveSurfers[model];
+            const b = buttons[model];
+            ws.play();
+            updateButtonText(b, true);
+          });
+        });
+      });
+    }
+
+    function shuffleArray(array, seed = 42) {
+      let rng = mulberry32(seed);
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function mulberry32(a) {
+      return function () {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
+    }
+
+    async function loadSamples(seed = 42) {
+      // document.getElementById('tables').innerHTML = '';
+      for (const { title, path } of TABLES) {
+        const res = await fetch(`static/txt/${path}.txt`);
+        const text = await res.text();
+        const lines = text.split('\n').filter(Boolean);
+        const picked = shuffleArray(lines, seed).slice(0, 8);
+        const tableId = `table-${path}`;
+        buildTableUI(title, tableId, path);
+        populateTableBody(picked, tableId, path);
+      }
+
+      document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.refresh-btn');
+        if (btn) {
+          const path = btn.dataset.path;
+          const tableId = btn.dataset.table;
+          const res = await fetch(`static/txt/${path}.txt`);
+          const text = await res.text();
+          const lines = text.split('\n').filter(Boolean);
+          const picked = shuffleArray(lines, Date.now()).slice(0, 8);
+          populateTableBody(picked, tableId, path);
+          collapseGlobalExpanded();
+        }
+      });
+    }
+
+    loadSamples(123456);
+  </script>
+</body>
+</html>

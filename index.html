@@ -327,17 +327,17 @@ approximation.
       {
         title: 'Pedalboard chain',
         path: 'pedalboard',
-        modelOrder: ['dry', 'wet', 'oa_cnf', 'oa_ast', 'oa_stito', 'ua_cnf', 'ua_ast', 'ua_stito'],
+        modelOrder: ['dry', 'wet', 'oa_cnf', 'oa_cnfxpp', 'oa_ast', 'oa_stito', 'ua_cnf', 'ua_cnfxpp', 'ua_ast', 'ua_stito'],
         modelLabels: {
           'dry': 'Dry', 'wet': 'Wet',
-          'oa_cnf': 'CNF', 'oa_ast': 'AST', 'oa_stito': 'ST-ITO',
-          'ua_cnf': 'CNF', 'ua_ast': 'AST', 'ua_stito': 'ST-ITO',
+          'oa_cnf': 'CNF', 'oa_cnfxpp': 'CNFX++', 'oa_ast': 'AST', 'oa_stito': 'ST-ITO',
+          'ua_cnf': 'CNF', 'ua_cnfxpp': 'CNFX++', 'ua_ast': 'AST', 'ua_stito': 'ST-ITO',
         },
         columnGroups: [
           { label: null, models: ['dry'] },
           { label: null, models: ['wet'] },
-          { label: 'Order Aware',   models: ['oa_cnf', 'oa_ast', 'oa_stito'] },
-          { label: 'Order Unaware', models: ['ua_cnf', 'ua_ast', 'ua_stito'] },
+          { label: 'Order Aware',   models: ['oa_cnf', 'oa_cnfxpp', 'oa_ast', 'oa_stito'] },
+          { label: 'Order Unaware', models: ['ua_cnf', 'ua_cnfxpp', 'ua_ast', 'ua_stito'] },
         ],
       },
       {

@@ -186,7 +186,7 @@ approximation.
         Listening examples have been normalised peak to peak, but are otherwise unprocessed in metrics computation.
         AST models have been trained as regression models, using mean square error over parameters as a loss function.
         ST-ITO is using the wet audio as a style reference and is applied to the parameters used to modify the dry audio.
-        Hence parameters are randomly sampled, we advise the listener to play examples at a low volume level, especially for CNFX++ ones.
+        Hence parameters are randomly sampled, we advise the listener to play examples at a low volume level, especially for CNF-FX++ ones.
       </div>
       <div id="container-pedalboard"></div>
     </div>
@@ -330,8 +330,8 @@ approximation.
         modelOrder: ['dry', 'wet', 'oa_cnf', 'oa_cnfxpp', 'oa_ast', 'oa_stito', 'ua_cnf', 'ua_cnfxpp', 'ua_ast', 'ua_stito'],
         modelLabels: {
           'dry': 'Dry', 'wet': 'Wet',
-          'oa_cnf': 'CNF', 'oa_cnfxpp': 'CNFX++', 'oa_ast': 'AST', 'oa_stito': 'ST-ITO',
-          'ua_cnf': 'CNF', 'ua_cnfxpp': 'CNFX++', 'ua_ast': 'AST', 'ua_stito': 'ST-ITO',
+          'oa_cnf': 'CNF', 'oa_cnfxpp': 'CNF-FX++', 'oa_ast': 'AST', 'oa_stito': 'ST-ITO',
+          'ua_cnf': 'CNF', 'ua_cnfxpp': 'CNF-FX++', 'ua_ast': 'AST', 'ua_stito': 'ST-ITO',
         },
         columnGroups: [
           { label: null, models: ['dry'] },
